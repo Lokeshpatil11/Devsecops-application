@@ -1,0 +1,5 @@
+CREATE TABLE recipes (name TEXT);
+INSERT INTO recipes VALUES ('Pasta');
+INSERT INTO recipes VALUES ('Biryani');
+INSERT INTO recipes VALUES ('Pizza');
+.quit

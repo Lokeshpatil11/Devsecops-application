@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: recipe-deployment
+  namespace: recipe-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: recipe
+  template:
+    metadata:
+      labels:
+        app: recipe
+    spec:
+      containers:
+      - name: recipe
+        image: DOCKERHUB_USERNAME/recipe-app:latest
+        ports:
+        - containerPort: 5000
