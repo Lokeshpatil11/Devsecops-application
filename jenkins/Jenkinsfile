@@ -4,7 +4,7 @@ pipeline {
     environment {
         IMAGE_NAME = "patillokesh/recipe-app"
         TAG = "${env.BUILD_NUMBER}"    // immutable tag using build number
-        DOCKERHUB_CREDENTIALS = 'dockerhub'  // Jenkins DockerHub credentials
+        DOCKERHUB_CREDENTIALS = 'dockerhub-creds'  // Jenkins DockerHub credentials
         SONARQUBE_SERVER = 'sonarqube'       // Jenkins SonarQube server
         KUBECONFIG_PATH = '/var/jenkins_home/.kube/config'  // mounted kubeconfig
     }
