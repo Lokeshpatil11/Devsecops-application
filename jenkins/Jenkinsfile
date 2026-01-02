@@ -6,8 +6,9 @@ pipeline {
     TAG = "latest"
     SONARQUBE_SERVER = "sonarqube"
   }
+stages {
 
-
+ 
 
     stage('SonarQube Scan') {
       steps {
