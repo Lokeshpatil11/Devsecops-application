@@ -3,90 +3,114 @@ pipeline {
 
     environment {
         IMAGE_NAME = "patillokesh/recipe-app"
-        TAG = "latest"
-        SONARQUBE_SERVER = "sonarqube"
+        TAG = "${env.BUILD_NUMBER}"    // immutable tag using build number
+        DOCKERHUB_CREDENTIALS = 'dockerhub'  // Jenkins DockerHub credentials
+        SONARQUBE_SERVER = 'sonarqube'       // Jenkins SonarQube server
+        KUBECONFIG_PATH = '/var/jenkins_home/.kube/config'  // mounted kubeconfig
+    }
+
+    options {
+        timestamps()   // adds timestamps to console logs
+        buildDiscarder(logRotator(numToKeepStr: '10'))
     }
 
     stages {
 
         stage('Checkout') {
             steps {
-                echo "Source code checked out"
+                echo "✅ Checking out source code"
+                checkout scm
             }
         }
 
-        stage('SonarQube Scan') {
+        stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('sonarqube') {
+                echo "🔍 Running SonarQube scan"
+                withSonarQubeEnv(SONARQUBE_SERVER) {
                     withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-                        sh '''
-                        sonar-scanner \
-                          -Dsonar.projectKey=recipe-app \
-                          -Dsonar.sources=. \
-                          -Dsonar.host.url=http://<JENKINS_VM_IP>:9000 \
-                          -Dsonar.login=$SONAR_TOKEN
-                        '''
+                        sh """
+                            sonar-scanner \
+                                -Dsonar.projectKey=recipe-app \
+                                -Dsonar.sources=. \
+                                -Dsonar.host.url=${SONARQUBE_SERVER_URL} \
+                                -Dsonar.login=$SONAR_TOKEN
+                        """
                     }
                 }
             }
         }
 
-        stage('Dependency Scan (OWASP)') {
+        stage('OWASP Dependency Scan') {
             steps {
-                dependencyCheck additionalArguments: '--scan .', odcInstallation: 'owasp'
+                echo "🛡 Running OWASP Dependency-Check"
+                dependencyCheck additionalArguments: '--scan . --format XML', odcInstallation: 'owasp'
                 dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                archiveArtifacts artifacts: '**/dependency-check-report.html', allowEmptyArchive: true
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh '''
-                docker build -t $IMAGE_NAME:$TAG -f docker/Dockerfile .
-                '''
+                echo "🐳 Building Docker image"
+                sh """
+                    docker build -t $IMAGE_NAME:$TAG -f docker/Dockerfile .
+                """
             }
         }
 
-        stage('Trivy Image Scan') {
+        stage('Trivy Scan') {
             steps {
-                sh '''
-                trivy image --severity HIGH,CRITICAL --exit-code 0 $IMAGE_NAME:$TAG
-                '''
+                echo "🔎 Running Trivy image scan"
+                sh """
+                    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image \
+                        --severity HIGH,CRITICAL \
+                        --exit-code 1 \
+                        $IMAGE_NAME:$TAG
+                """
             }
         }
 
-        stage('Push Image') {
+        stage('Push Docker Image') {
             steps {
+                echo "📦 Pushing image to Docker Hub"
                 withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub',
+                    credentialsId: DOCKERHUB_CREDENTIALS,
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    sh '''
-                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                    docker push $IMAGE_NAME:$TAG
-                    '''
+                    sh """
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker push $IMAGE_NAME:$TAG
+                    """
                 }
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
-                sh '''
-                kubectl apply -f k8s/namespace.yaml
-                kubectl apply -f k8s/deployment.yaml
-                kubectl apply -f k8s/service.yaml
-                kubectl rollout status deployment/recipe-app -n recipe-app
-                '''
+                echo "🚀 Deploying to Kubernetes"
+                withEnv(["KUBECONFIG=${KUBECONFIG_PATH}"]) {
+                    sh """
+                        kubectl apply -f k8s/namespace.yaml
+                        kubectl apply -f k8s/deployment.yaml
+                        kubectl apply -f k8s/service.yaml
+                        kubectl set image deployment/recipe-app recipe-app=$IMAGE_NAME:$TAG -n recipe-app
+                        kubectl rollout status deployment/recipe-app -n recipe-app
+                    """
+                }
             }
         }
     }
 
     post {
         success {
-            echo "✅ DevSecOps Pipeline completed successfully"
+            echo "✅ Pipeline completed successfully"
         }
         failure {
-            echo "❌ Pipeline failed – check logs"
+            echo "❌ Pipeline failed – check logs for details"
+        }
+        always {
+            archiveArtifacts artifacts: 'k8s/*.yaml', allowEmptyArchive: true
         }
     }
 }
