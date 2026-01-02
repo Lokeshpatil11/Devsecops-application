@@ -23,22 +23,13 @@ pipeline {
             }
         }
 
-        stage('SonarQube Analysis') {
-            steps {
-                echo "🔍 Running SonarQube scan"
-                withSonarQubeEnv(SONARQUBE_SERVER) {
-                    withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-                        sh """
-                            sonar-scanner \
-                                -Dsonar.projectKey=recipe-app \
-                                -Dsonar.sources=. \
-                                -Dsonar.host.url=${SONARQUBE_SERVER_URL} \
-                                -Dsonar.login=$SONAR_TOKEN
-                        """
-                    }
-                }
+    stage('SonarQube Analysis') {
+        steps {
+            withSonarQubeEnv('sonarqube') {  // must match the SonarQube server name in Jenkins
+                sh "sonar-scanner"
             }
         }
+    }
 
         stage('OWASP Dependency Scan') {
             steps {
