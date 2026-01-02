@@ -7,13 +7,7 @@ pipeline {
     SONARQUBE_SERVER = "sonarqube"
   }
 
-  stages {
 
-    stage('Checkout') {
-      steps {
-        git branch: 'main', url: 'https://github.com/Lokeshpatil11/Devsecops-application.git'
-      }
-    }
 
     stage('SonarQube Scan') {
       steps {
