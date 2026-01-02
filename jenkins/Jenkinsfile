@@ -1,63 +1,92 @@
 pipeline {
-  agent any
+    agent any
 
-  environment {
-    IMAGE_NAME = "DOCKERHUB_USERNAME/recipe-app"
-    TAG = "latest"
-    SONARQUBE_SERVER = "sonarqube"
-  }
-stages {
+    environment {
+        IMAGE_NAME = "lokeshpatil11/recipe-app"
+        TAG = "latest"
+        SONARQUBE_SERVER = "sonarqube"
+    }
 
- 
+    stages {
 
-    stage('SonarQube Scan') {
-      steps {
-        withSonarQubeEnv("${SONARQUBE_SERVER}") {
-          sh "sonar-scanner"
+        stage('Checkout') {
+            steps {
+                echo "Source code checked out"
+            }
         }
-      }
-    }
 
-    stage('Dependency Scan (OWASP)') {
-      steps {
-        sh """
-        dependency-check.sh \
-        --project RecipeApp \
-        --scan app \
-        --format HTML \
-        --out dependency-report
-        """
-      }
-    }
-
-    stage('Build Docker Image') {
-      steps {
-        sh "docker build -t ${IMAGE_NAME}:${TAG} -f docker/Dockerfile ."
-      }
-    }
-
-    stage('Trivy Image Scan') {
-      steps {
-        sh "trivy image --exit-code 0 --severity HIGH,CRITICAL ${IMAGE_NAME}:${TAG}"
-      }
-    }
-
-    stage('Push Image') {
-      steps {
-        withDockerRegistry(credentialsId: 'dockerhub-creds', url: '') {
-          sh "docker push ${IMAGE_NAME}:${TAG}"
+        stage('SonarQube Scan') {
+            steps {
+                withSonarQubeEnv('sonarqube') {
+                    withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                        sh '''
+                        sonar-scanner \
+                          -Dsonar.projectKey=recipe-app \
+                          -Dsonar.sources=. \
+                          -Dsonar.host.url=http://<JENKINS_VM_IP>:9000 \
+                          -Dsonar.login=$SONAR_TOKEN
+                        '''
+                    }
+                }
+            }
         }
-      }
+
+        stage('Dependency Scan (OWASP)') {
+            steps {
+                dependencyCheck additionalArguments: '--scan .', odcInstallation: 'owasp'
+                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh '''
+                docker build -t $IMAGE_NAME:$TAG -f docker/Dockerfile .
+                '''
+            }
+        }
+
+        stage('Trivy Image Scan') {
+            steps {
+                sh '''
+                trivy image --severity HIGH,CRITICAL --exit-code 0 $IMAGE_NAME:$TAG
+                '''
+            }
+        }
+
+        stage('Push Image') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                    docker push $IMAGE_NAME:$TAG
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh '''
+                kubectl apply -f k8s/namespace.yaml
+                kubectl apply -f k8s/deployment.yaml
+                kubectl apply -f k8s/service.yaml
+                kubectl rollout status deployment/recipe-app -n recipe-app
+                '''
+            }
+        }
     }
 
-    stage('Deploy to Kubernetes') {
-      steps {
-        sh """
-        kubectl apply -f k8s/namespace.yaml
-        kubectl apply -f k8s/deployment.yaml
-        kubectl apply -f k8s/service.yaml
-        """
-      }
+    post {
+        success {
+            echo "✅ DevSecOps Pipeline completed successfully"
+        }
+        failure {
+            echo "❌ Pipeline failed – check logs"
+        }
     }
-  }
 }
