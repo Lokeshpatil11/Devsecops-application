@@ -92,7 +92,7 @@ stage('OWASP Dependency Scan') {
                         kubectl apply -f k8s/namespace.yaml
                         kubectl apply -f k8s/deployment.yaml
                         kubectl apply -f k8s/service.yaml
-                        kubectl set image deployment/recipe-app recipe-app=$IMAGE_NAME:$TAG -n recipe-app
+                        kubectl set image deployment/recipe-deployment recipe=patillokesh/recipe-app:${BUILD_NUMBER} -n recipe-app
                         kubectl rollout status deployment/recipe-app -n recipe-app
                     """
                 }
