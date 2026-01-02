@@ -33,14 +33,21 @@ stage('SonarQube Analysis') {
         }
     }
 }
-        stage('OWASP Dependency Scan') {
-            steps {
-                echo "🛡 Running OWASP Dependency-Check"
-                dependencyCheck additionalArguments: '--scan . --format XML', odcInstallation: 'owasp'
-                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
-                archiveArtifacts artifacts: '**/dependency-check-report.html', allowEmptyArchive: true
-            }
+stage('OWASP Dependency Scan') {
+    steps {
+        dependencyCheck additionalArguments: '''
+            --format ALL
+            --scan .
+            --log dependency-check.log
+        ''', odcInstallation: 'owasp'
+    }
+    post {
+        always {
+            archiveArtifacts artifacts: 'dependency-check.log', allowEmptyArchive: true
         }
+    }
+}
+
 
         stage('Build Docker Image') {
             steps {
