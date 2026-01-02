@@ -32,7 +32,7 @@ stage('SonarQube Analysis') {
                   sonarsource/sonar-scanner-cli \
                   -Dsonar.projectKey=recipe-app \
                   -Dsonar.sources=/usr/src \
-                  -Dsonar.host.url=http://${SONARQUBE_SERVER_URL} \
+                  -Dsonar.host.url=http://192.168.80.132:9000/ \
                   -Dsonar.login=$SONAR_TOKEN
             """
         }
