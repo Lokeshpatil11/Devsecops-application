@@ -11,7 +11,7 @@ pipeline {
 
     stage('Checkout') {
       steps {
-        git branch: 'main', url: 'https://github.com/YOUR_USERNAME/recipe-devsecops-app.git'
+        git branch: 'main', url: 'https://github.com/Lokeshpatil11/Devsecops-application.git'
       }
     }
 
