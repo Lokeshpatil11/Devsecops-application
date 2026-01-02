@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "lokeshpatil11/recipe-app"
+        IMAGE_NAME = "patillokesh/recipe-app"
         TAG = "latest"
         SONARQUBE_SERVER = "sonarqube"
     }
